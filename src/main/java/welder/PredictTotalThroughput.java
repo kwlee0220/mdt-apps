@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
+import utils.Throwables;
+
 import mdt.aas.DataTypes;
 import mdt.client.HttpMDTManager;
 import mdt.model.expr.MDTExprParser;
@@ -151,7 +153,13 @@ class PredictTotalThroughput extends AbstractExecutionThreadService {
 					}
 
 					m_quantityProduced = value;
-	        		predictTotalThroughput();
+	        		try {
+	        			predictTotalThroughput();
+	        		}
+	        		catch ( Throwable e ) {
+	        			Throwable cause = Throwables.unwrapThrowable(e);
+	        			System.out.println("Failed to invoke predictTotalThroughput: cause=" + cause);
+	        		}
 	            }
 	
 	            @Override
@@ -184,15 +192,15 @@ class PredictTotalThroughput extends AbstractExecutionThreadService {
 	
 	private static int getIntField(ElementCollectionValue val, String field) {
 		PropertyValue pv = (PropertyValue)val.getField(field);
-		return DataTypes.INT.parseValueString(pv.get());
+		return (int)pv.get();
 	}
 	private static Duration getDurationField(ElementCollectionValue val, String field) {
 		PropertyValue pv = (PropertyValue)val.getField(field);
-		return DataTypes.DURATION.parseValueString(pv.get());
+		return (Duration)pv.get();
 	}
 	private static Float getFloatField(ElementCollectionValue val, String field) {
 		PropertyValue pv = (PropertyValue)val.getField(field);
-		return DataTypes.FLOAT.parseValueString(pv.get());
+		return (float)pv.get();
 	}
 
     public static void main(String[] args) throws Exception {
