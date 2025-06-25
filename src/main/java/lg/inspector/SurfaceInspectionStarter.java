@@ -84,7 +84,7 @@ class SurfaceInspectionStarter extends AbstractExecutionThreadService {
 	        		String payload = new String(msg.getPayload());
                     s_logger.debug("Message arrived on topic[{}]: {}", topic, payload);
 
-        			s_logger.debug("Starting a workflow: {}", m_workflowTemplateId);
+        			s_logger.info("Starting a workflow: {}", m_workflowTemplateId);
 	        		Workflow workflow = m_wfMgr.startWorkflow(m_workflowTemplateId);
 	        		System.out.println(workflow);
 	            }
