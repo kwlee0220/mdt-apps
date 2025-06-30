@@ -14,7 +14,6 @@ import mdt.model.sm.ref.MDTElementReference;
 import picocli.CommandLine;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Option;
-import picocli.CommandLine.ParseResult;
 
 /**
  *
