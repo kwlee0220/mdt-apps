@@ -19,7 +19,7 @@ import picocli.CommandLine.Option;
  *
  * @author Kang-Woo Lee (ETRI)
  */
-public class InspectorCompanion extends AbstractService{
+public class InspectorCompanion extends AbstractService {
 	private static final Logger s_logger = LoggerFactory.getLogger(UpperImageUploader.class);
     private static final String BROKER_URL = "tcp://localhost:1883";
     private static final String TOPIC = "mdt/inspector/parameters/UpperImage";
