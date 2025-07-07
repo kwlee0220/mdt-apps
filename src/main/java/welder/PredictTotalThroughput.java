@@ -1,7 +1,6 @@
 
 package welder;
 
-import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 
@@ -19,6 +18,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
+import utils.Initializable;
 import utils.Throwables;
 
 import mdt.aas.DataTypes;
@@ -26,8 +26,6 @@ import mdt.client.HttpMDTManager;
 import mdt.model.expr.MDTExprParser;
 import mdt.model.instance.MDTInstanceManager;
 import mdt.model.sm.ref.MDTElementReference;
-import mdt.model.sm.value.ElementCollectionValue;
-import mdt.model.sm.value.PropertyValue;
 import mdt.model.sm.variable.Variables;
 import mdt.task.TaskException;
 import mdt.task.builtin.AASOperationTask;
@@ -37,6 +35,7 @@ import mdt.workflow.model.TaskDescriptor;
 import mdt.workflow.model.TaskDescriptors;
 
 import picocli.CommandLine;
+import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Option;
 
@@ -45,12 +44,20 @@ import picocli.CommandLine.Option;
  *
  * @author Kang-Woo Lee (ETRI)
  */
-class PredictTotalThroughput extends AbstractExecutionThreadService {
+@Command(name = "predictTotalThroughput",
+		mixinStandardHelpOptions = true,
+		description = "Predicts total throughput based on the quantity produced")
+class PredictTotalThroughput extends AbstractExecutionThreadService implements Initializable {
     private static final Logger s_logger = LoggerFactory.getLogger(PredictTotalThroughput.class);
+    private static final String OP_POLL_INTERVAL = "1s";
+    private static final String OP_TIMEOUT = "1m";
     private static final String BROKER_URL = "tcp://localhost:1883";
     private static final String TOPIC = "mdt/welder/parameters/QuantityProduced";
     private static final String CLIENT_ID = "PredictTotalThroughput";
     private static final String OP_REF = "welder:ProductivityPrediction:Operation";
+    
+	private final MDTInstanceManager m_manager;
+	private final JsonMapper m_mapper;
 	
 	@Option(names={"--brokerUrl"}, paramLabel="url", defaultValue=BROKER_URL,
 			description="MQTT broker URL (default: ${DEFAULT-VALUE})")
@@ -72,55 +79,38 @@ class PredictTotalThroughput extends AbstractExecutionThreadService {
 			description = "Total throughput prediction interval")
 	private int m_interval;
 	
-	private final MDTInstanceManager m_manager;
-	private final JsonMapper m_mapper = JsonMapper.builder().findAndAddModules().build();
-    
-	public PredictTotalThroughput(HttpMDTManager mdt) {
-		m_manager = mdt.getInstanceManager();
-	}
-	
+	private TaskDescriptor m_taskDescriptor;
 	private int m_quantityProduced = -1;
-	private int m_lastStep = 0;
 	
-	private static JsonMapper s_mapper;
-	static {
-		s_mapper = JsonMapper.builder()
+	private PredictTotalThroughput(MDTInstanceManager manager) {
+		m_manager = manager;
+		m_mapper = JsonMapper.builder()
 							.findAndAddModules()
 							.addModule(new JavaTimeModule())
 							.build();
 	}
-	
-	public PredictTotalThroughput(HttpMDTManager mdt, String brokerUrl, String topic, String clientId,
-									String opExpr) {
-		m_brokerUrl = brokerUrl;
-		m_topic = topic;
-		m_clientId = clientId;
-		m_manager = mdt.getInstanceManager();
-		m_opExpr = opExpr;
+
+	@Override
+	public void initialize() throws Exception {
+		MDTElementReference opRef = MDTExprParser.parseElementReference(m_opExpr).evaluate();
+		m_taskDescriptor = TaskDescriptors.aasOperationTaskBuilder()
+						                .id("ProductivityPrediction")
+										.operationRef(opRef)
+										.pollInterval(OP_POLL_INTERVAL)
+										.timeout(OP_TIMEOUT)
+										.addOption(Options.newOption("loglevel", "info"))
+										.addLabel(TaskUtils.LABEL_MDT_OPERATION, "welder:ProductivityPrediction")
+										.addInputVariable(Variables.newInstance("Timestamp", "",
+																	"param:welder:NozzleProduction:EventDateTime"))
+										.addInputVariable(Variables.newInstance("NozzleProduction", "",
+																	"param:welder:NozzleProduction:ParameterValue"))
+										.addOutputVariable(Variables.newInstance("TotalThroughput", "",
+																	"param:welder:TotalThroughput"))
+										.build();
 	}
-	
-	private void predictTotalThroughput()
-		throws CancellationException, TimeoutException, InterruptedException, TaskException {
-		String expr = String.format("welder:ProductivityPrediction:Operation");
-		MDTElementReference ref = MDTExprParser.parseElementReference(expr).evaluate();
-		TaskDescriptor descriptor
-				= TaskDescriptors.aasOperationTaskBuilder()
-				                .id("ProductivityPrediction")
-								.operationRef(ref)
-								.pollInterval("1s")
-								.timeout("1m")
-								.addOption(Options.newOption("loglevel", "info"))
-								.addLabel(TaskUtils.LABEL_MDT_OPERATION, "welder:ProductivityPrediction")
-								.addInputVariable(Variables.newInstance("Timestamp", "",
-															"param:welder:NozzleProduction:EventDateTime"))
-								.addInputVariable(Variables.newInstance("NozzleProduction", "",
-															"param:welder:NozzleProduction:ParameterValue"))
-								.addOutputVariable(Variables.newInstance("TotalThroughput", "",
-															"param:welder:TotalThroughput"))
-								.build();
-		AASOperationTask task = new AASOperationTask(descriptor);
-		task.run(m_manager);
-	}
+
+	@Override
+	public void destroy() throws Exception { }
 
 	@Override
 	protected void run() throws MqttException {
@@ -175,7 +165,7 @@ class PredictTotalThroughput extends AbstractExecutionThreadService {
 	        System.out.printf("Subscribed to topic[%s] at MQTT broker %s%n", m_topic, m_brokerUrl);
 	        System.out.println("Press Ctrl+C to exit");
 
-        // Keep the application running
+	        // Keep the application running
 	        while (true) {
 	            Thread.sleep(1000);
 	        }
@@ -190,33 +180,28 @@ class PredictTotalThroughput extends AbstractExecutionThreadService {
 		}
 	}
 	
-	private static int getIntField(ElementCollectionValue val, String field) {
-		PropertyValue pv = (PropertyValue)val.getField(field);
-		return (int)pv.get();
-	}
-	private static Duration getDurationField(ElementCollectionValue val, String field) {
-		PropertyValue pv = (PropertyValue)val.getField(field);
-		return (Duration)pv.get();
-	}
-	private static Float getFloatField(ElementCollectionValue val, String field) {
-		PropertyValue pv = (PropertyValue)val.getField(field);
-		return (float)pv.get();
+	private void predictTotalThroughput()
+		throws CancellationException, TimeoutException, InterruptedException, TaskException {
+		AASOperationTask task = new AASOperationTask(m_taskDescriptor);
+		task.run(m_manager);
 	}
 
     public static void main(String[] args) throws Exception {
 		HttpMDTManager mdt = HttpMDTManager.connectWithDefault();
 		
-    	PredictTotalThroughput companion = new PredictTotalThroughput(mdt);
-		CommandLine commandLine = new CommandLine(companion)
+		PredictTotalThroughput app = new PredictTotalThroughput(mdt.getInstanceManager());
+		CommandLine commandLine = new CommandLine(app)
 									.setCaseInsensitiveEnumValuesAllowed(true)
 									.setUsageHelpWidth(110);
 		try {
-			commandLine.parseArgs(args);
-
-			if ( commandLine.isUsageHelpRequested() ) {
-				commandLine.usage(System.out, Ansi.OFF);
+			CommandLine.ParseResult parseResult = commandLine.parseArgs(args);
+			if ( parseResult.isUsageHelpRequested() ) {
+				commandLine.usage(System.out);
 			}
-			companion.startAsync().awaitTerminated();
+			else {
+				app.initialize();
+				app.startAsync().awaitTerminated();
+			}
 		}
 		catch ( Throwable e ) {
 			System.err.println(e);
