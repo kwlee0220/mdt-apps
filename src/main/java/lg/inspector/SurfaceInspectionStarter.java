@@ -5,6 +5,7 @@ import java.time.Duration;
 
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
+import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -13,7 +14,8 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import utils.Throwables;
+import utils.async.AbstractLoopThreadService;
 
 import mdt.client.HttpMDTManager;
 import mdt.workflow.Workflow;
@@ -30,7 +32,7 @@ import picocli.CommandLine.Option;
  *
  * @author Kang-Woo Lee (ETRI)
  */
-class SurfaceInspectionStarter extends AbstractExecutionThreadService {
+class SurfaceInspectionStarter extends AbstractLoopThreadService {
     private static final Logger s_logger = LoggerFactory.getLogger(SurfaceInspectionStarter.class);
     
     private static final String BROKER_URL = "tcp://localhost:1883";
@@ -55,8 +57,107 @@ class SurfaceInspectionStarter extends AbstractExecutionThreadService {
 			description = "Workflow template ID to use for image processing (default: ${DEFAULT-VALUE})")
 	private String m_workflowTemplateId;
 
+	private MqttClient m_mqttClient;
     private final WorkflowManager m_wfMgr;
     private WorkflowStatusMonitor m_statusMonitor;
+    
+	public SurfaceInspectionStarter(HttpMDTManager mdt) {
+		m_wfMgr = mdt.getWorkflowManager();
+	}
+	
+	public SurfaceInspectionStarter(HttpMDTManager mdt, String brokerUrl, String topic, String clientId,
+									String wfTemplateId) {
+		m_brokerUrl = brokerUrl;
+		m_topic = topic;
+		m_clientId = clientId;
+		m_wfMgr = mdt.getWorkflowManager();
+		m_workflowTemplateId = wfTemplateId;
+	}
+
+	@Override
+	protected void triggerShutdown() {
+		System.out.printf("Stopping %s...%n", getClass().getSimpleName());
+		markStopRequested();
+	}
+
+	@Override
+	protected void run() throws MqttException {
+        // Set connection options
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setCleanSession(true);
+        options.setAutomaticReconnect(true);
+        
+		m_mqttClient = new MqttClient(m_brokerUrl, m_clientId, new MemoryPersistence());
+        m_mqttClient.setCallback(m_mqttCallback);
+        
+        try {
+	        // Connect to broker
+	        m_mqttClient.connect(options);
+	
+	        System.out.println("Press Ctrl+C to exit");
+
+	        // Keep the application running
+	        awaitUntilStopRequested();
+	    }
+        catch ( MqttException e ) {
+	        s_logger.error("MQTT error: {}", e.getMessage(), e);
+	        System.err.println("MQTT error: " + e.getMessage());
+	    }
+		catch ( InterruptedException e ) {
+			Thread.currentThread().interrupt();
+	        s_logger.info("[%s] Interrupted", getClass().getSimpleName());
+		}
+        finally {
+        	m_mqttClient.close(true);
+//        	m_mqttClient.disconnectForcibly();
+        }
+	}
+	
+	private final MqttCallback m_mqttCallback = new MqttCallbackExtended() {
+		@Override
+		public void connectionLost(Throwable cause) {
+			cause = Throwables.unwrapThrowable(cause);
+			s_logger.debug("MQTT broker disconnected: cause={}", ""+ cause);
+		}
+
+		@Override
+		public void messageArrived(String topic, MqttMessage message) throws Exception {
+    		String payload = new String(message.getPayload());
+            s_logger.debug("Message arrived on topic[{}]: {}", topic, payload);
+
+			s_logger.info("Starting a workflow: {}", m_workflowTemplateId);
+    		try {
+				Workflow workflow = m_wfMgr.startWorkflow(m_workflowTemplateId);
+				m_statusMonitor = new WorkflowStatusMonitor(m_wfMgr, workflow.getName(), m_wfListener,
+															DEFAULT_STATUS_POLL_INTERVAL, false);
+				m_statusMonitor.setLogger(s_logger);
+				m_statusMonitor.start();
+			}
+			catch ( Exception e ) {
+				System.out.printf("Failed to start workflow '%s': %s%n", m_workflowTemplateId, e.getMessage());
+			}
+		}
+
+		@Override
+		public void connectComplete(boolean reconnect, String serverURI) {
+			if ( reconnect ) {
+				s_logger.info("[%s] reconnected to MQTT broker: serverURI={} -> try resubscribe to topic[%s]",
+								getClass().getSimpleName(), serverURI, m_topic);
+			}
+	
+	        try {
+				// Subscribe to topic
+				m_mqttClient.subscribe(m_topic);
+				s_logger.info("Subscribed to topic[{}] at MQTT broker {}", m_topic, m_brokerUrl);
+			}
+			catch ( MqttException e ) {
+				s_logger.error("Failed to resubscribe to topic[{}]: {}", m_topic, e.getMessage());
+			}
+		}
+
+		@Override
+		public void deliveryComplete(IMqttDeliveryToken token) {}
+	};
 	
 	private WorkflowListener m_wfListener = new WorkflowListener() {
 		@Override
@@ -79,79 +180,6 @@ class SurfaceInspectionStarter extends AbstractExecutionThreadService {
 			System.out.println("Workflow running: name=" + wfName);
 		}
 	};
-    
-	public SurfaceInspectionStarter(HttpMDTManager mdt) {
-		m_wfMgr = mdt.getWorkflowManager();
-	}
-	
-	public SurfaceInspectionStarter(HttpMDTManager mdt, String brokerUrl, String topic, String clientId,
-									String wfTemplateId) {
-		m_brokerUrl = brokerUrl;
-		m_topic = topic;
-		m_clientId = clientId;
-		m_wfMgr = mdt.getWorkflowManager();
-		m_workflowTemplateId = wfTemplateId;
-	}
-
-	@Override
-	protected void run() throws MqttException {
-        try ( MqttClient client = new MqttClient(m_brokerUrl, m_clientId, new MemoryPersistence()) ) {
-	        // Set connection options
-	        MqttConnectOptions options = new MqttConnectOptions();
-	        options.setCleanSession(true);
-	        options.setAutomaticReconnect(true);
-	
-	        // Set callback for message arrival and connection loss
-	        client.setCallback(new MqttCallback() {
-	            @Override
-	            public void connectionLost(Throwable cause) {
-        			s_logger.debug("MQTT broker disconnected");
-	            }
-	
-	            @Override
-	            public void messageArrived(String topic, MqttMessage msg) throws Exception {
-	        		String payload = new String(msg.getPayload());
-                    s_logger.debug("Message arrived on topic[{}]: {}", topic, payload);
-
-        			s_logger.info("Starting a workflow: {}", m_workflowTemplateId);
-	        		try {
-						Workflow workflow = m_wfMgr.startWorkflow(m_workflowTemplateId);
-						m_statusMonitor = new WorkflowStatusMonitor(m_wfMgr, workflow.getName(), m_wfListener,
-																	DEFAULT_STATUS_POLL_INTERVAL, false);
-						m_statusMonitor.start();
-					}
-					catch ( Exception e ) {
-						System.out.printf("Failed to start workflow '%s': %s%n", m_workflowTemplateId, e.getMessage());
-					}
-	            }
-	
-	            @Override
-	            public void deliveryComplete(IMqttDeliveryToken token) {}
-	        });
-	
-	        // Connect to broker
-	        client.connect(options);
-	
-	        // Subscribe to topic
-	        client.subscribe(m_topic);
-	
-	        System.out.printf("Subscribed to topic[%s] at MQTT broker %s%n", m_topic, m_brokerUrl);
-	        System.out.println("Press Ctrl+C to exit");
-
-        // Keep the application running
-	        while (true) {
-	            Thread.sleep(1000);
-	        }
-	    }
-        catch ( MqttException e ) {
-	        s_logger.error("MQTT error: {}", e.getMessage(), e);
-	        System.err.println("MQTT error: " + e.getMessage());
-	    }
-		catch ( InterruptedException e ) {
-			Thread.currentThread().interrupt();
-			s_logger.info("Subscriber interrupted");
-		}
-	}
 
     public static void main(String[] args) throws Exception {
 		HttpMDTManager mdt = HttpMDTManager.connectWithDefault();
