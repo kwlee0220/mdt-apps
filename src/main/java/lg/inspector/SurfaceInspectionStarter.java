@@ -1,6 +1,8 @@
 
 package lg.inspector;
 
+import java.time.Duration;
+
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
@@ -15,7 +17,9 @@ import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
 import mdt.client.HttpMDTManager;
 import mdt.workflow.Workflow;
+import mdt.workflow.WorkflowListener;
 import mdt.workflow.WorkflowManager;
+import mdt.workflow.model.WorkflowStatusMonitor;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Help.Ansi;
@@ -28,10 +32,12 @@ import picocli.CommandLine.Option;
  */
 class SurfaceInspectionStarter extends AbstractExecutionThreadService {
     private static final Logger s_logger = LoggerFactory.getLogger(SurfaceInspectionStarter.class);
+    
     private static final String BROKER_URL = "tcp://localhost:1883";
     private static final String TOPIC = "mdt/inspector/parameters/UpperImage";
     private static final String CLIENT_ID = "UpperImageSubscriber";
     private static final String WORKFLOW_TEMPLATE_ID = "thickness-simulation-short";
+    private static final Duration DEFAULT_STATUS_POLL_INTERVAL = Duration.ofSeconds(3);
 	
 	@Option(names={"--brokerUrl"}, paramLabel="url", defaultValue=BROKER_URL,
 			description="MQTT broker URL (default: ${DEFAULT-VALUE})")
@@ -50,6 +56,29 @@ class SurfaceInspectionStarter extends AbstractExecutionThreadService {
 	private String m_workflowTemplateId;
 
     private final WorkflowManager m_wfMgr;
+    private WorkflowStatusMonitor m_statusMonitor;
+	
+	private WorkflowListener m_wfListener = new WorkflowListener() {
+		@Override
+		public void onWorkflowCompleted(String wfName) {
+			System.out.printf("Workflow completed: name=%s%n", wfName);
+		}
+		
+		@Override
+		public void onWorkflowFailed(String wfName) {
+			System.out.printf("Workflow failed: name=%s%n", wfName);
+		}
+
+		@Override
+		public void onWorkflowStarting(String wfName) {
+			System.out.println("Workflow starting: name=" + wfName);
+		}
+
+		@Override
+		public void onWorkflowStarted(String wfName) {
+			System.out.println("Workflow running: name=" + wfName);
+		}
+	};
     
 	public SurfaceInspectionStarter(HttpMDTManager mdt) {
 		m_wfMgr = mdt.getWorkflowManager();
@@ -85,8 +114,15 @@ class SurfaceInspectionStarter extends AbstractExecutionThreadService {
                     s_logger.debug("Message arrived on topic[{}]: {}", topic, payload);
 
         			s_logger.info("Starting a workflow: {}", m_workflowTemplateId);
-	        		Workflow workflow = m_wfMgr.startWorkflow(m_workflowTemplateId);
-	        		System.out.println(workflow);
+	        		try {
+						Workflow workflow = m_wfMgr.startWorkflow(m_workflowTemplateId);
+						m_statusMonitor = new WorkflowStatusMonitor(m_wfMgr, workflow.getName(), m_wfListener,
+																	DEFAULT_STATUS_POLL_INTERVAL, false);
+						m_statusMonitor.start();
+					}
+					catch ( Exception e ) {
+						System.out.printf("Failed to start workflow '%s': %s%n", m_workflowTemplateId, e.getMessage());
+					}
 	            }
 	
 	            @Override

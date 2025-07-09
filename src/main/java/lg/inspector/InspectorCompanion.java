@@ -1,11 +1,14 @@
 package lg.inspector;
 
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Arrays;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Service;
+import com.google.common.util.concurrent.ServiceManager;
 
 import mdt.client.HttpMDTManager;
 import mdt.model.sm.ref.ElementReferences;
@@ -19,7 +22,7 @@ import picocli.CommandLine.Option;
  *
  * @author Kang-Woo Lee (ETRI)
  */
-public class InspectorCompanion extends AbstractService {
+public class InspectorCompanion implements Runnable {
 	private static final Logger s_logger = LoggerFactory.getLogger(UpperImageUploader.class);
     private static final String BROKER_URL = "tcp://localhost:1883";
     private static final String TOPIC = "mdt/inspector/parameters/UpperImage";
@@ -53,24 +56,41 @@ public class InspectorCompanion extends AbstractService {
 			description = "Workflow template ID to use for image processing (default: ${DEFAULT-VALUE})")
 	private String m_workflowTemplateId;
 	
-	private SurfaceInspectionStarter m_starter;
-	private UpperImageUploader m_uploader;
-
 	@Override
-	protected void doStart() {
+	public void run() {
 		HttpMDTManager mdt = HttpMDTManager.connectWithDefault();
 		
-		m_starter = new SurfaceInspectionStarter(mdt, m_brokerUrl, m_topic, m_clientId, m_workflowTemplateId);
-		m_starter.startAsync();
+		SurfaceInspectionStarter starter = new SurfaceInspectionStarter(mdt, m_brokerUrl, m_topic, m_clientId,
+																		m_workflowTemplateId);
+		UpperImageUploader uploader = new UpperImageUploader(mdt, m_fileRef, m_imageDir.toFile());
+		
+		ServiceManager manager = new ServiceManager(Arrays.asList(starter, uploader));
+		manager.addListener(new ServiceManager.Listener() {
+			@Override
+			public void failure(Service service) {
+				s_logger.error("Service failed: " + service.failureCause());
+			}
 
-		m_uploader = new UpperImageUploader(mdt, m_fileRef, m_imageDir.toFile());
-		m_uploader.startAsync();
-	}
-
-	@Override
-	protected void doStop() {
-		m_uploader.stopAsync();
-		m_starter.stopAsync();
+			@Override
+			public void healthy() {
+				s_logger.info("All services are healthy.");
+			}
+		}, Runnable::run);
+		
+		manager.startAsync().awaitHealthy();
+		System.out.println("All services started successfully.");
+		
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			try {
+				manager.stopAsync().awaitStopped(Duration.ofSeconds(10));
+				System.out.println("All services stopped successfully.");
+			}
+			catch ( Exception e ) {
+				s_logger.error("Error stopping services: " + e.getMessage(), e);
+			}
+		}));
+		
+		manager.awaitStopped();
 	}
 	
 	public static final void main(String... args) throws Exception {
@@ -84,7 +104,7 @@ public class InspectorCompanion extends AbstractService {
 				commandLine.usage(System.out, Ansi.OFF);
 			}
 			
-			companion.startAsync().awaitTerminated();
+			companion.run();
 		}
 		catch ( Throwable e ) {
 			System.err.println(e);
