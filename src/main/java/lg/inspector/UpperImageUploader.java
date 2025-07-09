@@ -21,8 +21,6 @@ import mdt.client.HttpMDTManager;
 import mdt.model.sm.ref.ElementReferences;
 import mdt.model.sm.ref.MDTElementReference;
 
-import picocli.CommandLine;
-import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Option;
 
 
@@ -99,25 +97,6 @@ class UpperImageUploader extends AbstractExecutionThreadService {
 		}
 		catch ( IOException e ) {
 			s_logger.error("Failed to create watch service: " + e.getMessage());
-		}
-	}
-	
-	public static final void main(String... args) throws Exception {
-		InspectorCompanion companion = new InspectorCompanion();
-		CommandLine commandLine = new CommandLine(companion)
-										.setCaseInsensitiveEnumValuesAllowed(true)
-										.setUsageHelpWidth(110);
-		try {
-			commandLine.parseArgs(args);
-
-			if ( commandLine.isUsageHelpRequested() ) {
-				commandLine.usage(System.out, Ansi.OFF);
-			}
-			companion.startAsync().awaitTerminated();
-		}
-		catch ( Throwable e ) {
-			System.err.println(e);
-			commandLine.usage(System.out, Ansi.OFF);
 		}
 	}
 }
