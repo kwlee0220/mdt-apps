@@ -30,7 +30,6 @@ import mdt.model.sm.variable.Variables;
 import mdt.task.TaskException;
 import mdt.task.builtin.AASOperationTask;
 import mdt.task.builtin.TaskUtils;
-import mdt.workflow.model.Options;
 import mdt.workflow.model.TaskDescriptor;
 import mdt.workflow.model.TaskDescriptors;
 
@@ -98,7 +97,7 @@ class PredictTotalThroughput extends AbstractExecutionThreadService implements I
 										.operationRef(opRef)
 										.pollInterval(OP_POLL_INTERVAL)
 										.timeout(OP_TIMEOUT)
-										.addOption(Options.newOption("loglevel", "info"))
+										.addOption("loglevel", "info")
 										.addLabel(TaskUtils.LABEL_MDT_OPERATION, "welder:ProductivityPrediction")
 										.addInputVariable(Variables.newInstance("Timestamp", "",
 																	"param:welder:NozzleProduction:EventDateTime"))
