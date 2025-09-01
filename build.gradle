@@ -1,22 +1,22 @@
 plugins {
 	id 'java'
 	id 'application'
-	id 'eclipse'
 	id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'etri'
 version = '1.1.2'
-mainClassName = 'lg.inspector.InspectorCompanion'
+
+application {
+	mainClass = 'mdt.cli.MDTCommandsMain'
+}
 
 java {
 	sourceCompatibility = JavaVersion.VERSION_21
 	targetCompatibility = JavaVersion.VERSION_21
 }
-	
-[compileJava,compileTestJava]*.options*.encoding = 'UTF-8'
 tasks.withType(JavaCompile) {
-	options.encoding = 'UTF-8'
+    options.encoding = 'UTF-8'
 }
 
 configurations {
@@ -70,41 +70,4 @@ shadowJar {
 	exclude 'META-INF/*.SF'
 	exclude 'META-INF/*.DSA'
 	exclude 'META-INF/*.RSA'
-}
-
-eclipse {
-	classpath {
-		file {
-			withXml {
-				def node = it.asNode()
-				node.appendNode('classpathentry', [kind: 'output', path: 'build/classes'])
-			}
-			
-			whenMerged { cp ->
-				Map entryByPath = cp.entries.groupBy { entry -> entry.path }
-				entryByPath.each { key, values ->
-					if ( values.size() > 1 ) {
-						def entry = values.first()
-						if ( entry.kind == 'src' ) {
-							entry.includes = []
-							entry.excludes = []
-						}
-						int index = cp.entries.indexOf entry
-						cp.entries.removeAll values
-						cp.entries.add index, entry
-					}
-				}
-				cp.entries.each { entry ->
-					if ( entry.kind == 'src' && entry.hasProperty('output') ) {
-						if ( entry.path.contains('/test/') ) {
-							entry.output = 'build/test_classes'
-						}
-						else {
-							entry.output = 'build/classes'
-						}
-					}
-				}
-			}
-		}
-	}
 }

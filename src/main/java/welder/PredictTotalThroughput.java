@@ -23,7 +23,7 @@ import utils.Throwables;
 
 import mdt.aas.DataTypes;
 import mdt.client.HttpMDTManager;
-import mdt.model.expr.MDTExprParser;
+import mdt.model.expr.MDTExpressionParser;
 import mdt.model.instance.MDTInstanceManager;
 import mdt.model.sm.ref.MDTElementReference;
 import mdt.model.sm.variable.Variables;
@@ -91,7 +91,7 @@ class PredictTotalThroughput extends AbstractExecutionThreadService implements I
 
 	@Override
 	public void initialize() throws Exception {
-		MDTElementReference opRef = MDTExprParser.parseElementReference(m_opExpr).evaluate();
+		MDTElementReference opRef = MDTExpressionParser.parseElementReference(m_opExpr).evaluate();
 		m_taskDescriptor = TaskDescriptors.aasOperationTaskBuilder()
 						                .id("ProductivityPrediction")
 										.operationRef(opRef)
@@ -99,10 +99,8 @@ class PredictTotalThroughput extends AbstractExecutionThreadService implements I
 										.timeout(OP_TIMEOUT)
 										.addOption("loglevel", "info")
 										.addLabel(TaskUtils.LABEL_MDT_OPERATION, "welder:ProductivityPrediction")
-										.addInputVariable(Variables.newInstance("Timestamp", "",
-																	"param:welder:NozzleProduction:EventDateTime"))
 										.addInputVariable(Variables.newInstance("NozzleProduction", "",
-																	"param:welder:NozzleProduction:ParameterValue"))
+																	"param:welder:NozzleProduction"))
 										.addOutputVariable(Variables.newInstance("TotalThroughput", "",
 																	"param:welder:TotalThroughput"))
 										.build();
