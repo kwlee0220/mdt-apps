@@ -27,14 +27,12 @@ public class InspectorCompanion implements Runnable {
     private static final String BROKER_URL = "tcp://localhost:1883";
     private static final String TOPIC = "mdt/inspector/parameters/UpperImage";
     private static final String CLIENT_ID = "UpperImageSubscriber";
-    private static final String WORKFLOW_TEMPLATE_ID = "thickness-simulation-short";
 	
 	@Option(names={"--dir"}, paramLabel="directory", required=true,
 			description="Target image directory to watch for new images")
 	private Path m_imageDir;
 	
-	@Option(names={"--fileRef"}, paramLabel="ref", required=true,
-			description="File reference to upload images to")
+	@Option(names={"--fileRef"}, paramLabel="ref", required=true, description="File reference to upload images to")
 	public void setFileRef(String fileRefExpr) {
 		m_fileRef = ElementReferences.parseExpr(fileRefExpr);
 	}
@@ -52,8 +50,8 @@ public class InspectorCompanion implements Runnable {
 			description = "MQTT client ID (default: ${DEFAULT-VALUE})")
 	private String m_clientId;
 	
-	@Option(names = {"--workflow", "-w" }, paramLabel="template-id", defaultValue=WORKFLOW_TEMPLATE_ID,
-			description = "Workflow template ID to use for image processing (default: ${DEFAULT-VALUE})")
+	@Option(names = {"--workflow", "-w" }, paramLabel="template-id", required=true,
+			description = "Workflow model ID to use for image processing")
 	private String m_workflowTemplateId;
 	
 	@Override
