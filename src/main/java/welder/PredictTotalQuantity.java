@@ -14,8 +14,6 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 
 import utils.Initializable;
@@ -23,6 +21,7 @@ import utils.Throwables;
 
 import mdt.aas.DataTypes;
 import mdt.client.HttpMDTManager;
+import mdt.model.MDTModelSerDe;
 import mdt.model.expr.MDTExpressionParser;
 import mdt.model.instance.MDTInstanceManager;
 import mdt.model.sm.ref.MDTElementReference;
@@ -55,7 +54,6 @@ class PredictTotalQuantity extends AbstractExecutionThreadService implements Ini
     private static final String CLIENT_ID = DEFAULT_SUBMODEL_IDSHORT;
     
 	private final MDTInstanceManager m_manager;
-	private final JsonMapper m_mapper;
 	
 	@Option(names={"--brokerUrl"}, paramLabel="url", defaultValue=DEFAULT_BROKER_URL,
 			description="MQTT broker URL (default: ${DEFAULT-VALUE})")
@@ -86,10 +84,6 @@ class PredictTotalQuantity extends AbstractExecutionThreadService implements Ini
 	
 	private PredictTotalQuantity(MDTInstanceManager manager) {
 		m_manager = manager;
-		m_mapper = JsonMapper.builder()
-							.findAndAddModules()
-							.addModule(new JavaTimeModule())
-							.build();
 	}
 
 	@Override
@@ -145,7 +139,7 @@ class PredictTotalQuantity extends AbstractExecutionThreadService implements Ini
 	                    s_logger.debug("Message arrived on topic[{}]: {}", topic, payload);
 	                }
 	        		
-	        		String count = m_mapper.readTree(payload).asText();
+	        		String count = MDTModelSerDe.MAPPER.readTree(payload).asText();
 	        		int value = DataTypes.INT.parseValueString(count);
 					if ( value <= m_quantityProduced ) {
 						return;
