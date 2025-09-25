@@ -1,5 +1,7 @@
 package lg.inspector;
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
@@ -24,11 +26,10 @@ import picocli.CommandLine.Option;
  */
 public class InspectorCompanion implements Runnable {
 	private static final Logger s_logger = LoggerFactory.getLogger(UpperImageUploader.class);
-    private static final String BROKER_URL = "tcp://localhost:1883";
+    private static final String MQTT_BROKER_CONFIG_FILE = "mqtt_broker_config.json";
     private static final String TOPIC = "mdt/inspector/parameters/UpperImage";
-    private static final String CLIENT_ID = "UpperImageSubscriber";
 	
-	@Option(names={"--dir"}, paramLabel="directory", required=true,
+	@Option(names={"--imageDir"}, paramLabel="directory", required=true,
 			description="Target image directory to watch for new images")
 	private Path m_imageDir;
 	
@@ -38,17 +39,13 @@ public class InspectorCompanion implements Runnable {
 	}
 	private MDTElementReference m_fileRef;
 	
-	@Option(names={"--brokerUrl"}, paramLabel="url", defaultValue=BROKER_URL,
-			description="MQTT broker URL (default: ${DEFAULT-VALUE})")
-	private String m_brokerUrl;
+	@Option(names={"--mqttConf"}, paramLabel="path", defaultValue=MQTT_BROKER_CONFIG_FILE,
+			description="MQTT broker config file path (default: ${DEFAULT-VALUE})")
+	private File m_mqttConfigPath;
 	
 	@Option(names = {"--topic", "-t" }, paramLabel = "topic", defaultValue = TOPIC,
 			description = "MQTT topic to subscribe to for image upload (default: ${DEFAULT-VALUE})")
 	private String m_topic;
-	
-	@Option(names = {"--clientId" }, paramLabel = "id", defaultValue = CLIENT_ID,
-			description = "MQTT client ID (default: ${DEFAULT-VALUE})")
-	private String m_clientId;
 	
 	@Option(names = {"--workflow", "-w" }, paramLabel="template-id", required=true,
 			description = "Workflow model ID to use for image processing")
@@ -56,13 +53,24 @@ public class InspectorCompanion implements Runnable {
 	
 	@Override
 	public void run() {
+		try {
+			runChecked();
+		}
+		catch ( Exception e ) {
+			System.err.println("Error running InspectorCompanion: " + e.getMessage());
+			s_logger.error("Error running InspectorCompanion: " + e.getMessage(), e);
+			System.exit(1);
+		}
+	}
+	
+	private void runChecked() throws IOException {
 		HttpMDTManager mdt = HttpMDTManager.connectWithDefault();
 		
-		SurfaceInspectionStarter starter = new SurfaceInspectionStarter(mdt, m_brokerUrl, m_topic, m_clientId,
+		SurfaceInspectionInvoker invoker = new SurfaceInspectionInvoker(mdt, m_mqttConfigPath, m_topic,
 																		m_workflowTemplateId);
 		UpperImageUploader uploader = new UpperImageUploader(mdt, m_fileRef, m_imageDir.toFile());
 		
-		ServiceManager manager = new ServiceManager(Arrays.asList(starter, uploader));
+		ServiceManager manager = new ServiceManager(Arrays.asList(invoker, uploader));
 		manager.addListener(new ServiceManager.Listener() {
 			@Override
 			public void failure(Service service) {
