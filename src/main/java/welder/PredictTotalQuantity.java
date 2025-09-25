@@ -51,7 +51,6 @@ class PredictTotalQuantity extends AbstractExecutionThreadService implements Ini
     private static final String OP_TIMEOUT = "1m";
     private static final String DEFAULT_BROKER_URL = "tcp://localhost:1883";
     private static final String DEFAULT_SUBMODEL_IDSHORT = "TotalQuantityPrediction";
-    private static final String CLIENT_ID = DEFAULT_SUBMODEL_IDSHORT;
     
 	private final MDTInstanceManager m_manager;
 	
@@ -62,10 +61,6 @@ class PredictTotalQuantity extends AbstractExecutionThreadService implements Ini
 	@Option(names = {"--topic", "-t" }, paramLabel = "topic",
 			description = "MQTT topic to subscribe to for image upload (default: \"mdt/<inst-id>/parameters/QuantityProduced\")")
 	private String m_topic;
-	
-	@Option(names = {"--clientId" }, paramLabel = "id", defaultValue = CLIENT_ID,
-			description = "MQTT client ID (default: ${DEFAULT-VALUE})")
-	private String m_clientId;
 	
 	@Option(names = {"--instance" }, paramLabel = "id", required=true,
 			description = "Target MDTInstance id")
@@ -122,7 +117,7 @@ class PredictTotalQuantity extends AbstractExecutionThreadService implements Ini
         options.setCleanSession(true);
         options.setAutomaticReconnect(true);
         
-        try ( MqttClient client = new MqttClient(m_brokerUrl, m_clientId, new MemoryPersistence()) ) {	
+        try ( MqttClient client = new MqttClient(m_brokerUrl, MqttClient.generateClientId(), new MemoryPersistence()) ) {	
 	        // Set callback for message arrival and connection loss
 	        client.setCallback(new MqttCallback() {
 	            @Override
