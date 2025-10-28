@@ -26,7 +26,7 @@ import picocli.CommandLine.Option;
  */
 public class InspectorCompanion implements Runnable {
 	private static final Logger s_logger = LoggerFactory.getLogger(UpperImageUploader.class);
-    private static final String MQTT_BROKER_CONFIG_FILE = "companion/mqtt_broker_config.json";
+    private static final String MQTT_BROKER_CONFIG_FILE = "mqtt_broker_config.json";
     private static final String TOPIC = "mdt/inspector/parameters/UpperImage";
 	
 	@Option(names={"--imageDir"}, paramLabel="directory", required=true,
