@@ -1,7 +1,6 @@
 
 package lg.inspector;
 
-import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 
@@ -46,12 +45,12 @@ class SurfaceInspectionInvoker extends AbstractService implements Subscriber {
 
     private WorkflowStatusMonitor m_statusMonitor;
 	
-	public SurfaceInspectionInvoker(HttpMDTManager mdt, @Nullable File confPath, @Nullable String topic,
-									String wfTemplateId)
+	public SurfaceInspectionInvoker(HttpMDTManager mdt, @Nullable String topic, String wfTemplateId)
 		throws IOException {
-		MqttBrokerConfig brokerConf = (confPath != null)
-									? MAPPER.readerFor(MqttBrokerConfig.class).readValue(confPath)
-									: MqttBrokerConfig.DEFAULT;
+		MqttBrokerConfig brokerConf = new MqttBrokerConfig();
+		brokerConf.setBrokerUrl(System.getenv("MQTT_BROKER_URL"));
+		
+		s_logger.info("use MQTT broker config: {}", brokerConf);
 		m_mqttService = new MqttService(brokerConf);
 		m_mqttService.subscribe(FOption.getOrElse(topic, TOPIC), this);
 		
@@ -112,7 +111,7 @@ class SurfaceInspectionInvoker extends AbstractService implements Subscriber {
     public static void main(String[] args) throws Exception {
 		HttpMDTManager mdt = HttpMDTManager.connectWithDefault();
 		
-    	SurfaceInspectionInvoker companion = new SurfaceInspectionInvoker(mdt, null, null,
+    	SurfaceInspectionInvoker companion = new SurfaceInspectionInvoker(mdt, null,
     																		"lgrefridge-process-optimization");
     	companion.startAsync();
     	companion.awaitTerminated();
