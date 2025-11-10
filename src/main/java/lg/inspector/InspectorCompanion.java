@@ -26,8 +26,12 @@ import picocli.CommandLine.Option;
  */
 public class InspectorCompanion implements Runnable {
 	private static final Logger s_logger = LoggerFactory.getLogger(UpperImageUploader.class);
-    private static final String MQTT_BROKER_CONFIG_FILE = "mqtt_broker_config.json";
+    private static final String MDT_CLIENT_CONFIG_FILE = "mdt_client_config.yaml";
     private static final String TOPIC = "mdt/inspector/parameters/UpperImage";
+	
+	@Option(names={"--clientConf"}, paramLabel="path", defaultValue=MDT_CLIENT_CONFIG_FILE,
+			description="MDT client configuration file path (default: ${DEFAULT-VALUE})")
+	private String m_clientConfPath;
 	
 	@Option(names={"--imageDir"}, paramLabel="directory", required=true,
 			description="Target image directory to watch for new images")
@@ -39,10 +43,6 @@ public class InspectorCompanion implements Runnable {
 	}
 	private MDTElementReference m_fileRef;
 	
-	@Option(names={"--mqttConf"}, paramLabel="path", defaultValue=MQTT_BROKER_CONFIG_FILE,
-			description="MQTT broker config file path (default: ${DEFAULT-VALUE})")
-	private File m_mqttConfigPath;
-	
 	@Option(names = {"--topic", "-t" }, paramLabel = "topic", defaultValue = TOPIC,
 			description = "MQTT topic to subscribe to for image upload (default: ${DEFAULT-VALUE})")
 	private String m_topic;
@@ -53,7 +53,6 @@ public class InspectorCompanion implements Runnable {
 	
 	@Override
 	public void run() {
-		
 		try {
 			runChecked();
 		}
@@ -65,10 +64,11 @@ public class InspectorCompanion implements Runnable {
 	}
 	
 	private void runChecked() throws IOException {
-		HttpMDTManager mdt = HttpMDTManager.connectWithDefault();
+		File clientConfFile = new File(m_clientConfPath);
+		s_logger.info("Loading MDT client config from: {}", clientConfFile.getAbsolutePath());
+		HttpMDTManager mdt = HttpMDTManager.connectWithConfigFile(clientConfFile);
 		
-		SurfaceInspectionInvoker invoker = new SurfaceInspectionInvoker(mdt, m_mqttConfigPath, m_topic,
-																		m_workflowTemplateId);
+		SurfaceInspectionInvoker invoker = new SurfaceInspectionInvoker(mdt, m_topic, m_workflowTemplateId);
 		UpperImageUploader uploader = new UpperImageUploader(mdt, m_fileRef, m_imageDir.toFile());
 		
 		ServiceManager manager = new ServiceManager(Arrays.asList(invoker, uploader));
