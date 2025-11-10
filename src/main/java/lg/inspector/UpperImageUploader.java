@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Preconditions;
 
 import utils.async.AbstractLoopThreadService;
+import utils.io.FileUtils;
 
 import mdt.client.HttpMDTManager;
 import mdt.model.sm.ref.ElementReferences;
@@ -47,11 +48,18 @@ class UpperImageUploader extends AbstractLoopThreadService {
 	UpperImageUploader(HttpMDTManager mdt, MDTElementReference fileRef, File targetDir) {
 		Preconditions.checkArgument(fileRef != null, "AASFile Reference is null");
 		Preconditions.checkArgument(targetDir != null, "targetDir is null");
-		Preconditions.checkArgument(Files.isDirectory(targetDir.toPath()), "targetDir is not a directory");
 		
 		m_fileRef = fileRef;
 		m_fileRef.activate(mdt.getInstanceManager());
 		
+		if ( !targetDir.exists() ) {
+			try {
+				FileUtils.createDirectory(targetDir);
+			}
+			catch ( IOException e ) {
+				throw new IllegalArgumentException("Failed to create target directory: " + targetDir, e);
+			}
+		}
 		m_imageDir = targetDir.toPath();
 	}
 
