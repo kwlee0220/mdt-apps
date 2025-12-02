@@ -111,7 +111,7 @@ class UpperImageUploader extends AbstractLoopThreadService {
 							Path fullPath = m_imageDir.resolve(filename);
 	
 							s_logger.info("Uploading image file: " + fullPath.toAbsolutePath());
-							m_fileRef.uploadFile(fullPath.toFile());
+							m_fileRef.updateAttachment(fullPath.toFile());
 						}
 					}
 	
