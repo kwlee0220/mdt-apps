@@ -1,6 +1,5 @@
 package lg.inspector;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -29,9 +28,9 @@ public class InspectorCompanion implements Runnable {
     private static final String MDT_CLIENT_CONFIG_FILE = "mdt_client_config.yaml";
     private static final String TOPIC = "mdt/inspector/parameters/UpperImage";
 	
-	@Option(names={"--clientConf"}, paramLabel="path", defaultValue=MDT_CLIENT_CONFIG_FILE,
-			description="MDT client configuration file path (default: ${DEFAULT-VALUE})")
-	private String m_clientConfPath;
+//	@Option(names={"--clientConf"}, paramLabel="path", defaultValue=MDT_CLIENT_CONFIG_FILE,
+//			description="MDT client configuration file path (default: ${DEFAULT-VALUE})")
+//	private String m_clientConfPath;
 	
 	@Option(names={"--imageDir"}, paramLabel="directory", required=true,
 			description="Target image directory to watch for new images")
@@ -64,9 +63,10 @@ public class InspectorCompanion implements Runnable {
 	}
 	
 	private void runChecked() throws IOException {
-		File clientConfFile = new File(m_clientConfPath);
-		s_logger.info("Loading MDT client config from: {}", clientConfFile.getAbsolutePath());
-		HttpMDTManager mdt = HttpMDTManager.connectWithConfigFile(clientConfFile);
+//		File clientConfFile = new File(m_clientConfPath);
+//		s_logger.info("Loading MDT client config from: {}", clientConfFile.getAbsolutePath());
+//		HttpMDTManager mdt = HttpMDTManager.connectWithConfigFile(clientConfFile);
+		HttpMDTManager mdt = HttpMDTManager.connectWithDefault();
 		
 		SurfaceInspectionInvoker invoker = new SurfaceInspectionInvoker(mdt, m_topic, m_workflowTemplateId);
 		UpperImageUploader uploader = new UpperImageUploader(mdt, m_fileRef, m_imageDir.toFile());
