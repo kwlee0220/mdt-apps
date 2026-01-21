@@ -24,13 +24,14 @@ import mdt.client.HttpMDTManager;
 import mdt.model.MDTModelSerDe;
 import mdt.model.expr.MDTExpressionParser;
 import mdt.model.instance.MDTInstanceManager;
+import mdt.model.sm.ref.ElementReferences;
 import mdt.model.sm.ref.MDTElementReference;
-import mdt.model.sm.variable.Variables;
+import mdt.task.MDTTask;
 import mdt.task.TaskException;
 import mdt.task.builtin.AASOperationTask;
 import mdt.task.builtin.TaskUtils;
+import mdt.workflow.model.ArgumentSpec;
 import mdt.workflow.model.TaskDescriptor;
-import mdt.workflow.model.TaskDescriptors;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -84,23 +85,23 @@ class PredictTotalQuantity extends AbstractExecutionThreadService implements Ini
 	@Override
 	public void initialize() throws Exception {
 		String smRef = String.format("%s:%s", m_instanceId, m_submodelIdShort);
+		
 		String opExpr = String.format("%s:Operation", smRef);
 		String paramNozzleProduction = String.format("param:%s:NozzleProduction", m_instanceId);
 		String paramTotalQuantityPrediction = String.format("param:%s:TotalQuantityPrediction", m_instanceId);
 		
 		MDTElementReference opRef = MDTExpressionParser.parseElementReference(opExpr).evaluate();
-		m_taskDescriptor = TaskDescriptors.aasOperationTaskBuilder()
-						                .id("ProductivityPrediction")
-										.operationRef(opRef)
-										.pollInterval(OP_POLL_INTERVAL)
-										.timeout(OP_TIMEOUT)
-										.addOption("loglevel", "info")
-										.addLabel(TaskUtils.LABEL_MDT_OPERATION, smRef)
-										.addInputVariable(Variables.newInstance("NozzleProduction", "",
-																				paramNozzleProduction))
-										.addOutputVariable(Variables.newInstance("TotalQuantityPrediction", "",
-																				paramTotalQuantityPrediction))
-										.build();
+		m_taskDescriptor = new TaskDescriptor();
+		m_taskDescriptor.setType(AASOperationTask.class.getName());
+		m_taskDescriptor.setId("ProductivityPrediction");
+		m_taskDescriptor.setSubmodelRef(ElementReferences.parseSubmodelReference(smRef));
+		m_taskDescriptor.addInputArgumentSpec("NozzleProduction", ArgumentSpec.reference(paramNozzleProduction));
+		m_taskDescriptor.addOutputArgumentSpec("TotalQuantityPrediction", ArgumentSpec.reference(paramTotalQuantityPrediction));
+		m_taskDescriptor.addOption(AASOperationTask.OPTION_OPERATION, opRef.toStringExpr());
+		m_taskDescriptor.addOption(MDTTask.OPTION_TIMEOUT, OP_TIMEOUT);
+		m_taskDescriptor.addOption(MDTTask.OPTION_POLL_INTERVAL, OP_POLL_INTERVAL);
+		m_taskDescriptor.addOption(MDTTask.OPTION_LOG_LEVEL, "info");
+		m_taskDescriptor.addLabel(TaskUtils.LABEL_MDT_OPERATION, smRef);
 	}
 
 	@Override

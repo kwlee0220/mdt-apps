@@ -4,7 +4,8 @@ package lg.inspector;
 import java.io.IOException;
 import java.time.Duration;
 
-import org.checkerframework.checker.nullness.qual.Nullable;
+import javax.annotation.Nullable;
+
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +14,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.util.concurrent.AbstractService;
 
-import utils.func.FOption;
+import utils.func.Optionals;
 
 import mdt.client.HttpMDTManager;
 import mdt.client.support.MqttBrokerConfig;
@@ -52,7 +53,7 @@ class SurfaceInspectionInvoker extends AbstractService implements Subscriber {
 		
 		s_logger.info("use MQTT broker config: {}", brokerConf);
 		m_mqttService = new MqttService(brokerConf);
-		m_mqttService.subscribe(FOption.getOrElse(topic, TOPIC), this);
+		m_mqttService.subscribe(Optionals.getOrElse(topic, TOPIC), this);
 		
 		m_wfMgr = mdt.getWorkflowManager();
 		m_workflowTemplateId = wfTemplateId;
@@ -111,8 +112,7 @@ class SurfaceInspectionInvoker extends AbstractService implements Subscriber {
     public static void main(String[] args) throws Exception {
 		HttpMDTManager mdt = HttpMDTManager.connectWithDefault();
 		
-    	SurfaceInspectionInvoker companion = new SurfaceInspectionInvoker(mdt, null,
-    																		"lgrefridge-process-optimization");
+    	SurfaceInspectionInvoker companion = new SurfaceInspectionInvoker(mdt, null, "inspector-simulation");
     	companion.startAsync();
     	companion.awaitTerminated();
     }

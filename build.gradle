@@ -1,7 +1,8 @@
 plugins {
 	id 'java'
 	id 'application'
-	id 'com.github.johnrengelman.shadow' version '8.1.1'
+	// id 'com.github.johnrengelman.shadow' version '8.1.1'
+	id("com.gradleup.shadow") version "9.3.0"
 }
 
 group = 'etri'
@@ -31,6 +32,9 @@ repositories {
 dependencies {
 	implementation project(":utils")
 	implementation project(":mdt-client")
+	
+	// @Nullable, @GuardedBy
+	compileOnly "com.google.code.findbugs:jsr305:${findbugs_version}"
 
 	// Guava (from the project :utils)
 	implementation "com.google.guava:guava:${guava_version}"
