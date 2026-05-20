@@ -4,7 +4,7 @@ package lg.inspector;
 import java.io.IOException;
 import java.time.Duration;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.slf4j.Logger;
