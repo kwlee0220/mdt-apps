@@ -1,7 +1,6 @@
 plugins {
 	id 'java'
 	id 'application'
-	// id 'com.github.johnrengelman.shadow' version '8.1.1'
 	id("com.gradleup.shadow") version "9.3.0"
 	id 'eclipse'
 }
@@ -34,7 +33,9 @@ dependencies {
 	implementation project(":utils")
 	implementation project(":mdt-client")
 	
-	// @Nullable, @GuardedBy
+	// @Nullable
+	compileOnly "org.jetbrains:annotations:${jetbrains_version}"
+	// @GuardedBy
 	compileOnly "com.google.code.findbugs:jsr305:${findbugs_version}"
 
 	// Guava (from the project :utils)
@@ -77,9 +78,13 @@ dependencies {
 	testRuntimeOnly "org.junit.vintage:junit-vintage-engine:${junit_jupiter_version}"
 }
 
+tasks.named('jar') {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 shadowJar {
 	mergeServiceFiles()
-	
+
 	exclude 'META-INF/*.SF'
 	exclude 'META-INF/*.DSA'
 	exclude 'META-INF/*.RSA'
